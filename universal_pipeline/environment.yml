@@ -1,0 +1,15 @@
+name: nitr
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python>=3.9
+  - blast
+  - bedtools
+  - samtools
+  - hmmer
+  - miniprot
+  - star
+  - stringtie
+  - biopython
+  - pyfaidx
