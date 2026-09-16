@@ -16,10 +16,10 @@ TBLASTN zebrafish I domains
     → one cluster window (outermost I ± 100 kb)
     → 6-frame translate + SMART hmmscan         ← Ig exons BLAST missed
     → pair V/I into genes (never two I’s)
-    → genomic stitch Met→stop
-    → InterProScan
-    → SignalP 5.0 + DeepTMHMM                   [WEB]
+    → RNA exons if present (SP→V→I→TM→cyto); else V/I only
+    → InterProScan (V vs I)
     → exon table + flanking genes
+      (optional SignalP/DeepTMHMM checks only)
 ```
 
 Canonical architecture: **SP → V → I → TM → cyto**. I-only, V-only, and partial genes are allowed.
@@ -68,9 +68,8 @@ mamba install -c bioconda blast bedtools samtools hmmer star stringtie miniprot
 
 Also: [SMART.hmm](https://smart.embl.de/) (the HMM file, not the website search), [InterProScan](https://interproscan-docs.readthedocs.io/en/latest/HowToDownload.html) 5.65 + Java 11.
 
-Web: [SignalP 5.0](https://services.healthtech.dtu.dk/services/SignalP-5.0/) and [DeepTMHMM](https://dtu.biolib.com/DeepTMHMM).
-
-STAR / StringTie are optional (RNA-seq).
+STAR / StringTie are optional (Illumina). minimap2 is optional (PacBio Iso-Seq).
+SignalP / DeepTMHMM are optional **checks**, not how SP/TM exons are found.
 
 Put `SMART.hmm` at `tools/SMART.hmm`, or set `SMART_HMM` in your species config.
 
@@ -130,7 +129,9 @@ bash steps/00_check_tools.sh
 - Confirm cysteines yourself. The TSV is a triage, not a keep list.
 - Cut **one window** from the outermost confirmed I to the other, plus 100 kb.
 - **Never** merge two I exons into one gene.
-- SP = SignalP 5.0 only. TM/cyto = DeepTMHMM only. DeepTMHMM’s N-terminal “signal” is **not** an SP.
+- **Never** translate through an intron. SP/TM/cyto come from spliced RNA exons (Illumina or Iso-Seq). Without RNA, the gene is V and/or I only.
+- Do not invent a signal peptide from “nearest Met upstream of V,” and do not search the genome for SP/TM.
+- SignalP / DeepTMHMM must not override 8b exons. DeepTMHMM’s N-terminal “signal” is **not** an SP.
 - Do not use the target species’ NCBI annotation for flanks. Use zebrafish + spotted gar (miniprot) ± RNA.
 
 ---
@@ -339,9 +340,10 @@ sbatch --export=ALL,NITR_CONFIG=$NITR_CONFIG steps/07_hmmscan.sh
 
 `steps/08a_rnaseq.sh` · 64G, 16 cpu, 24 h
 
-Skip if you have no FASTQ. The script exits 0. Steps 8 / 8b still run.
+Skip if you have no FASTQ and no `RNA_ISOSEQ`. The script exits 0. Steps 8 / 8b still run.
 
-STAR vs the **full genome**, subset the cluster BAM, StringTie `--conservative`.
+- Illumina PE: STAR vs the **full genome**, subset the cluster BAM, StringTie `--conservative`.
+- PacBio Iso-Seq FASTA(s): `minimap2 -ax splice:hq`, subset, StringTie `-L`.
 
 ```bash
 sbatch --export=ALL,NITR_CONFIG=$NITR_CONFIG steps/08a_rnaseq.sh
@@ -360,7 +362,7 @@ sbatch --export=ALL,NITR_CONFIG=$NITR_CONFIG steps/08a_rnaseq.sh
 - Unpaired V → V-only
 - **Never** two I’s in one gene
 
-If StringTie ran, keep a transcript only when it overlaps **exactly one** gene.
+If StringTie ran, split a fusion transcript so each exon goes to exactly one gene (nearest same-strand V/I); do not skip it.
 
 ```bash
 python3 scripts/build_nitr_from_transcripts.py \
@@ -383,11 +385,11 @@ GeneIDs are `{GENE_PREFIX}1…n` in genomic order.
 
 ---
 
-## Step 8b — Genomic stitch (Met → stop)
+## Step 8b — Transcript exons (or V/I only)
 
 `steps/08b_stitch.sh` · 8G, 1 cpu, 1 h
 
-Finish each locus on that gene only. Stop at the midpoint toward the next same-strand I.
+Same-strand StringTie exons win when they cover that gene’s V/I. Each exon is assigned to one gene: overlap with V/I wins; in the gap between two genes, the nearer Ig edge wins (so an SP between NITR4 and NITR5 belongs to NITR5). Extra 5′ acceptor nt are trimmed so SP–V–I–TM is one ORF. Without RNA, V/I are snapped to GT–AG; SP/TM/cyto are left blank (no Met→stop, no genome SP/TM search).
 
 ```bash
 python3 scripts/stitch_nitr_genomic.py \
@@ -421,20 +423,11 @@ sbatch --export=ALL,NITR_CONFIG=$NITR_CONFIG steps/09_interproscan.sh
 
 ---
 
-## Step 9w — SignalP 5.0 + DeepTMHMM  `[WEB]`
+## Step 9w — SignalP / DeepTMHMM `[OPTIONAL WEB CHECK]`
 
 `steps/09w_web_help.sh` · foreground, no sbatch
 
-```bash
-bash steps/09w_web_help.sh
-```
-
-Upload `annotation/nitr_proteins_simple.fa`:
-
-1. SignalP 5.0 (Eukarya) → `annotation/signalp/output.gff3` and `output_protein_type.txt`
-2. DeepTMHMM → `annotation/deeptmhmm/TMRs.gff3`
-
-Only SignalP SP calls are trusted.
+Skip this if you have no RNA and 8b already left SP/TM blank. Upload `annotation/nitr_proteins_simple.fa` only to see whether the web tools **agree** with 8b.
 
 ---
 
