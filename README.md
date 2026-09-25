@@ -1,5 +1,5 @@
 # nitr_finder
-# -- Find NITR genes, domain exons, and flanking genes --
+# -- de novo discovery where NITRs have never been pulled out of the genome --
 
 **Two tables at the end**
 
