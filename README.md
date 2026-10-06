@@ -123,19 +123,6 @@ bash steps/00_check_tools.sh
 
 ---
 
-## Rules
-
-- Query with **I-domain peptides** and **TBLASTN**, not BLASTP and not full-length NITR proteins.
-- Confirm cysteines yourself. The TSV is a triage, not a keep list.
-- Cut **one window** from the outermost confirmed I to the other, plus 100 kb.
-- **Never** merge two I exons into one gene.
-- **Never** translate through an intron. SP/TM/cyto come from spliced RNA exons (Illumina or Iso-Seq). Without RNA, the gene is V and/or I only.
-- Do not invent a signal peptide from “nearest Met upstream of V,” and do not search the genome for SP/TM.
-- SignalP / DeepTMHMM must not override 8b exons. DeepTMHMM’s N-terminal “signal” is **not** an SP.
-- Do not use the target species’ NCBI annotation for flanks. Use zebrafish + spotted gar (miniprot) ± RNA.
-
----
-
 ## Step 1 — BLAST database
 
 `steps/01_makeblastdb.sh` · 16G, 2 cpu, 2 h
